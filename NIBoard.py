@@ -4,8 +4,16 @@ from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfi
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
+class NIAnalogIn(AnalogIn):
+    @set_passed_properties(property_names = {
+        "device_properties":["min", "max"]}
+        )
+    def __init__(self, name, parent_device, connection, scale_factor=1.0, units='Volts', min=-10.0, max=-10.0, **kwargs):
+        AnalogIn.__init__(self, name, parent_device, connection, scale_factor, units, **kwargs)
+        
+
 class NIBoard(IntermediateDevice):
-    allowed_children = [AnalogOut, DigitalOut, AnalogIn]
+    allowed_children = [AnalogOut, DigitalOut, AnalogIn, NIAnalogIn]
     n_analogs = 4
     n_digitals = 32
     digital_dtype = np.uint32
@@ -75,9 +83,16 @@ class NIBoard(IntermediateDevice):
         input_connections = inputs.keys()
         input_connections.sort()
         input_attrs = []
+        input_min = {}
+        input_max = {}
         acquisitions = []
         for connection in input_connections:
-            input_attrs.append(self.MAX_name+'/'+connection)
+            name = self.MAX_name+'/'+connection
+            input_attrs.append(name)
+            if isinstance(inputs[connection], NIAnalogIn):
+                input_min[name] = inputs[connection].get_property('min', 'device_properties')
+                input_max[name] = inputs[connection].get_property('max', 'device_properties')
+            
             for acq in inputs[connection].acquisitions:
                 acquisitions.append((connection,acq['label'],acq['start_time'],acq['end_time'],acq['wait_label'],acq['scale_factor'],acq['units']))
         # The 'a256' dtype below limits the string fields to 256
@@ -102,6 +117,8 @@ class NIBoard(IntermediateDevice):
         if len(acquisition_table): # Table must be non empty
             grp.create_dataset('ACQUISITIONS',compression=config.compression,data=acquisition_table)
             self.set_property('analog_in_channels', ', '.join(input_attrs), location='device_properties')
+            self.set_property('analog_in_min', input_min, location='device_properties')
+            self.set_property('analog_in_max', input_max, location='device_properties')
         # TODO: move this to decorator (requires ability to set positional args with @set_passed_properties)
         self.set_property('clock_terminal', self.clock_terminal, location='connection_table_properties')
 

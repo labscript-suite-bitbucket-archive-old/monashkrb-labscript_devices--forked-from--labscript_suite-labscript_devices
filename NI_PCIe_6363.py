@@ -422,7 +422,14 @@ class NiPCIe6363AcquisitionWorker(Worker):
             self.ai_data = numpy.zeros((self.samples_per_channel*len(chnl_list),), dtype=numpy.float64)   
             
             for chnl in chnl_list:
-                self.task.CreateAIVoltageChan(chnl,"",DAQmx_Val_RSE,-10.0,10.0,DAQmx_Val_Volts,None)
+                min = -10.0
+                max = 10.0
+                
+                if chnl in self.buffered_voltage_min:
+                    min = self.buffered_voltage_min[chnl]
+                if chnl in self.buffered_voltage_max:
+                    max = self.buffered_voltage_max[chnl]
+                self.task.CreateAIVoltageChan(chnl,"",DAQmx_Val_RSE,min,max,DAQmx_Val_Volts,None)
                 
             self.task.CfgSampClkTiming("",rate,DAQmx_Val_Rising,DAQmx_Val_ContSamps,1000)
                     
@@ -464,6 +471,8 @@ class NiPCIe6363AcquisitionWorker(Worker):
         self.h5_file = h5file
         # read channels, acquisition rate, etc from H5 file
         h5_chnls = []
+        self.buffered_voltage_min = {}
+        self.buffered_voltage_max = {}
         with h5py.File(h5file,'r') as hdf5_file:
             group =  hdf5_file['/devices/'+device_name]
             device_properties = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
@@ -472,6 +481,10 @@ class NiPCIe6363AcquisitionWorker(Worker):
             if 'analog_in_channels' in device_properties:
                 h5_chnls = device_properties['analog_in_channels'].split(', ')
                 self.buffered_rate = device_properties['acquisition_rate']
+                
+                if 'analog_in_min' in device_properties and 'analog_in_max' in device_properties:
+                    self.buffered_voltage_min = device_properties['analog_in_min']
+                    self.buffered_voltage_max = device_properties['analog_in_max']
             else:
                self.logger.debug("no input channels")
         # combine static channels with h5 channels (using a set to avoid duplicates)
