@@ -141,14 +141,14 @@ if __name__ != "__main__":
         
         
         def transition_to_manual(self):
-            reponse = self.send_data("transition_to_manual")
+            response = self.send_data("transition_to_manual")
             if response != 'ok':
                 raise Exception('Failed to transition to manual.  Message from server was: %s'%response)
                 
             return True
             
         def abort(self):
-            reponse = self.send_data("transition_to_manual")
+            response = self.send_data("transition_to_manual")
             if response != 'ok':
                 raise Exception('Failed to abort.  Message from server was: %s'%response)
                 
@@ -277,19 +277,19 @@ if __name__ == "__main__":
             self.initialised = False
             self.abort = threading.Event()
 
-        def run_experiment(focus):
+        def run_experiment(self,focus):
             
             # Now we're waiting for the triggers and ready to go
             while not GPIO.input(23) and not self.abort.is_set():
                 GPIO.wait_for_edge(23, GPIO.RISING, timeout=1000)
             if self.abort.is_set():
-                break
+                return
             move_to_imaging(focus)
             
             while GPIO.input(23) and not self.abort.is_set():
                 GPIO.wait_for_edge(23, GPIO.FALLING, timeout=1000)
             if self.abort.is_set():
-                break
+                return
             move_to_MOT()
 
         def initialise(self):
