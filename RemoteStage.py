@@ -15,7 +15,7 @@ if __name__ != "__main__":
 
     from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
     from labscript import StaticAnalogQuantity, Device, LabscriptError, set_passed_properties
-
+    import numpy as np
     minval=0
     maxval=76346
 
@@ -271,7 +271,7 @@ if __name__ == "__main__":
         def run(focus):
             # first, check that the stages are in the MOT position.
             lens_position = check_stage_position(lens_stage)
-            mirror_position - check_stage_position(mirror_stage)
+            mirror_position = check_stage_position(mirror_stage)
 
             if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
                 move_to_MOT()
@@ -293,20 +293,20 @@ if __name__ == "__main__":
 
            
         def initialise(self):
-            
+            print "Initialising"
             # connect to stages
             connect()
 
             # check if the stages have been homed.
             # safest to do lens first, in case it has fallen down and is resting on the mirror.
             send(lens_stage, get_setting, device_mode)
-            lens_settings = receive()
+            lens_settings = receive()[2]
             if not int(bin(lens_settings)[-8]):
                 #lens stage is not homed, let's home it now.
                 send(lens_stage,home)
             # and now the mirror
             send(mirror_stage, get_setting, device_mode)
-            mirror_settings = receive()
+            mirror_settings = receive()[2]
             if not int(bin(mirror_settings)[-8]):
                 #mirror stage is not homed, let's home it now.
                 send(mirror_stage,home)
@@ -317,7 +317,7 @@ if __name__ == "__main__":
             return 'ok'
 
         def handler(self, message):
-            # print message
+            print message
             message_parts = message.split(' ')
             cmd = message_parts[0]
             
@@ -342,7 +342,7 @@ if __name__ == "__main__":
             elif cmd == 'transition_to_manual':
                 self.experiment.terminate()
                 lens_position = check_stage_position(lens_stage)
-                mirror_position - check_stage_position(mirror_stage)
+                mirror_position = check_stage_position(mirror_stage)
                 if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
                     move_to_MOT()
                 self.buffered = False
