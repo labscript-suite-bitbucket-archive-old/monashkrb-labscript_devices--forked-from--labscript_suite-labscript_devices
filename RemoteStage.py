@@ -117,7 +117,7 @@ if __name__ != "__main__":
         
 
         def send_data(self, data):
-            return zprocess.zmq_get(self.port, self.host, data=data)
+            return zprocess.zmq_get(self.port, self.host, data=data, timeout=10)
 
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             with h5py.File(h5file) as hdf5_file:
@@ -303,14 +303,17 @@ if __name__ == "__main__":
             lens_settings = receive()[2]
             if not int(bin(lens_settings)[-8]):
                 #lens stage is not homed, let's home it now.
+                print "Homing lens stage"
                 send(lens_stage,home)
             # and now the mirror
             send(mirror_stage, get_setting, device_mode)
             mirror_settings = receive()[2]
             if not int(bin(mirror_settings)[-8]):
                 #mirror stage is not homed, let's home it now.
+                print "Homing mirror stage"
                 send(mirror_stage,home)
             # Now initialise into the MOT position
+            print "Moving to MOT position"
             move_to_MOT()
 
             self.initialised = True
