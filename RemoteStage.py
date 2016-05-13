@@ -291,7 +291,7 @@ if __name__ == "__main__":
             self.buffered = False
             self.initialised = False
 
-        @inmain_decorator(wait_for_return=True)   
+           
         def initialise(self):
             
             # connect to stages
@@ -353,3 +353,5 @@ if __name__ == "__main__":
                 
             return ret_message
     experiment_server = ExperimentServer(42522)
+    while True:
+        time.sleep(1)
