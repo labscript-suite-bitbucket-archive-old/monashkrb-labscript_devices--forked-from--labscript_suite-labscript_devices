@@ -11,155 +11,157 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import StaticAnalogQuantity, Device, LabscriptError, set_passed_properties
+if __name__ != "__main__":
 
-minval=0
-maxval=76346
+    from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
+    from labscript import StaticAnalogQuantity, Device, LabscriptError, set_passed_properties
 
-@labscript_device
-class RemoteStage(Device):
-    allowed_children = [StaticAnalogQuantity]
-    generation = 0
-    
-    @set_passed_properties(property_names = {"connection_table_properties" : [""]})
-    def __init__(self, name, server = ""):
-        Device.__init__(self, name, None, None)
-        self.BLACS_connection = server
+    minval=0
+    maxval=76346
+
+    @labscript_device
+    class RemoteStage(Device):
+        allowed_children = [StaticAnalogQuantity]
+        generation = 0
         
-    def generate_code(self, hdf5_file):
-        data_dict = {}
-        for stage in self.child_devices:
-            # Call these functions to finalise the stage, they are standard functions of all subclasses of Output:
-            ignore = stage.get_change_times()
-            stage.make_timeseries([])
-            stage.expand_timeseries()
-            connection = [int(s) for s in stage.connection.split() if s.isdigit()][0]
-            value = stage.raw_output[0]
-            if not minval <= value <= maxval:
-                # error, out of bounds
-                raise LabscriptError('%s %s has value out of bounds. Set value: %s Allowed range: %s to %s.'%(stage.description,stage.name,str(value),str(minval),str(maxval)))
-            data_dict[str(stage.connection)] = value
-        dtypes = [(conn, int) for conn in data_dict]
-        data_array = np.zeros(1, dtype=dtypes)
-        for conn in data_dict:
-            data_array[0][conn] = data_dict[conn] 
-        grp = hdf5_file.create_group('/devices/'+self.name)
-        grp.create_dataset('static_values', data=data_array)
-
-from blacs.tab_base_classes import Worker, define_state
-from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
-
-from blacs.device_base_class import DeviceTab
-
-@BLACS_tab
-class ZaberstageControllerTab(DeviceTab):
-    def initialise_GUI(self):
-        # Capabilities
-        self.base_units = 'steps'
-        self.base_min = 0
-        self.base_step = 100
-        self.base_decimals = 0
-        
-        self.device = self.settings['connection_table'].find_by_name(self.device_name)
-        self.num_stages = len(self.device.child_list)
-        
-        # Create the AO output objects
-        ao_prop = {}
-        for child_name in self.device.child_list:
-            connection = self.device.child_list[child_name].parent_port
+        @set_passed_properties(property_names = {"connection_table_properties" : [""]})
+        def __init__(self, name, server = ""):
+            Device.__init__(self, name, None, None)
+            self.BLACS_connection = server
             
-            base_max = 76346
-            
-            ao_prop[connection] = {'base_unit':self.base_units,
-                                   'min':self.base_min,
-                                   'max':base_max,
-                                   'step':self.base_step,
-                                   'decimals':self.base_decimals
-                                  }
-                                
-        # Create the output objects    
-        self.create_analog_outputs(ao_prop)        
-        # Create widgets for output objects
-        dds_widgets,ao_widgets,do_widgets = self.auto_create_widgets()
-        # and auto place the widgets in the UI
-        self.auto_place_widgets(("Zaber Stages",ao_widgets))
-        
-        # Store the Measurement and Automation Explorer (MAX) name
-        self.server = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
-        
-        # Set the capabilities of this device
-        self.supports_remote_value_check(False)
-        self.supports_smart_programming(False) 
-    
-    def initialise_workers(self):
-        # Create and set the primary worker
-        self.create_worker("main_worker",ZaberWorker,{'server':self.server})
-        self.primary_worker = "main_worker"
+        def generate_code(self, hdf5_file):
+            data_dict = {}
+            for stage in self.child_devices:
+                # Call these functions to finalise the stage, they are standard functions of all subclasses of Output:
+                ignore = stage.get_change_times()
+                stage.make_timeseries([])
+                stage.expand_timeseries()
+                connection = [int(s) for s in stage.connection.split() if s.isdigit()][0]
+                value = stage.raw_output[0]
+                if not minval <= value <= maxval:
+                    # error, out of bounds
+                    raise LabscriptError('%s %s has value out of bounds. Set value: %s Allowed range: %s to %s.'%(stage.description,stage.name,str(value),str(minval),str(maxval)))
+                data_dict[str(stage.connection)] = value
+            dtypes = [(conn, int) for conn in data_dict]
+            data_array = np.zeros(1, dtype=dtypes)
+            for conn in data_dict:
+                data_array[0][conn] = data_dict[conn] 
+            grp = hdf5_file.create_group('/devices/'+self.name)
+            grp.create_dataset('static_values', data=data_array)
 
-@BLACS_worker    
-class ZaberWorker(Worker):
-    def init(self):
+    from blacs.tab_base_classes import Worker, define_state
+    from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
+
+    from blacs.device_base_class import DeviceTab
+
+    @BLACS_tab
+    class ZaberstageControllerTab(DeviceTab):
+        def initialise_GUI(self):
+            # Capabilities
+            self.base_units = 'steps'
+            self.base_min = 0
+            self.base_step = 100
+            self.base_decimals = 0
+            
+            self.device = self.settings['connection_table'].find_by_name(self.device_name)
+            self.num_stages = len(self.device.child_list)
+            
+            # Create the AO output objects
+            ao_prop = {}
+            for child_name in self.device.child_list:
+                connection = self.device.child_list[child_name].parent_port
+                
+                base_max = 76346
+                
+                ao_prop[connection] = {'base_unit':self.base_units,
+                                       'min':self.base_min,
+                                       'max':base_max,
+                                       'step':self.base_step,
+                                       'decimals':self.base_decimals
+                                      }
+                                    
+            # Create the output objects    
+            self.create_analog_outputs(ao_prop)        
+            # Create widgets for output objects
+            dds_widgets,ao_widgets,do_widgets = self.auto_create_widgets()
+            # and auto place the widgets in the UI
+            self.auto_place_widgets(("Zaber Stages",ao_widgets))
+            
+            # Store the Measurement and Automation Explorer (MAX) name
+            self.server = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+            
+            # Set the capabilities of this device
+            self.supports_remote_value_check(False)
+            self.supports_smart_programming(False) 
         
-        global h5py; import labscript_utils.h5_lock, h5py
-        global zprocess; import zprocess
+        def initialise_workers(self):
+            # Create and set the primary worker
+            self.create_worker("main_worker",ZaberWorker,{'server':self.server})
+            self.primary_worker = "main_worker"
+
+    @BLACS_worker    
+    class ZaberWorker(Worker):
+        def init(self):
+            
+            global h5py; import labscript_utils.h5_lock, h5py
+            global zprocess; import zprocess
+            
+            self.host, self.port = self.server.split(':')
+            
+            data = 'initialise'
+            response = self.send_data(data)
+            if response == 'ok':
+                return True
+            else:
+                raise Exception('invalid response from server: ' + str(response))
         
-        self.host, self.port = self.server.split(':')
+
+        def send_data(self, data):
+            return zprocess.zmq_get(self.port, self.host, data=data)
+
+        def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
+            with h5py.File(h5file) as hdf5_file:
+                group = hdf5_file['/devices/'+device_name]
+                if 'static_values' in group:
+                    focus = group['static_values'][0][0]
+
+
+            response = self.send_data("%s %s"%("transition_to_buffered", focus))
+            
+            if response != 'ok':
+                raise Exception('Failed to transition to buffered. Message from server was: %s'%response)
+              
+            return focus
+
+
+
+        def program_manual(self,values):
+            #for now, there is no manual mode
+            return values
         
-        data = 'initialise'
-        response = self.send_data(data)
-        if response == 'ok':
+        
+        def transition_to_manual(self):
+            reponse = self.send_data("transition_to_manual")
+            if response != 'ok':
+                raise Exception('Failed to transition to manual.  Message from server was: %s'%response)
+                
             return True
-        else:
-            raise Exception('invalid response from server: ' + str(response))
-    
-
-    def send_data(self, data):
-        return zprocess.zmq_get(self.port, self.host, data=data)
-
-    def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
-        with h5py.File(h5file) as hdf5_file:
-            group = hdf5_file['/devices/'+device_name]
-            if 'static_values' in group:
-                focus = group['static_values'][0][0]
-
-
-        response = self.send_data("%s %s"%("transition_to_buffered", focus))
-        
-        if response != 'ok':
-            raise Exception('Failed to transition to buffered. Message from server was: %s'%response)
-          
-        return focus
-
-
-
-    def program_manual(self,values):
-        #for now, there is no manual mode
-        return values
-    
-    
-    def transition_to_manual(self):
-        reponse = self.send_data("transition_to_manual")
-        if response != 'ok':
-            raise Exception('Failed to transition to manual.  Message from server was: %s'%response)
             
-        return True
-        
-    def abort(self):
-        reponse = self.send_data("transition_to_manual")
-        if response != 'ok':
-            raise Exception('Failed to abort.  Message from server was: %s'%response)
+        def abort(self):
+            reponse = self.send_data("transition_to_manual")
+            if response != 'ok':
+                raise Exception('Failed to abort.  Message from server was: %s'%response)
+                
+            return True
             
-        return True
-        
-    def abort_buffered(self):
-        return self.abort()
-        
-    def abort_transition_to_buffered(self):
-        return self.abort()
-        
-    def status(self, region):
-        return self.send_data("status %s"%region)
+        def abort_buffered(self):
+            return self.abort()
+            
+        def abort_transition_to_buffered(self):
+            return self.abort()
+            
+        def status(self, region):
+            return self.send_data("status %s"%region)
 
 
 #### Some common stage control functions that the Pi will use on the remote side, but can also be used when importing this file to manually control the stages
