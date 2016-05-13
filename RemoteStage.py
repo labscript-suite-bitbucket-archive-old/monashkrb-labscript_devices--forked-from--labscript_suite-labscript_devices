@@ -260,38 +260,38 @@ def move_to_imaging(focus = lens_imaging_position):
 ### This section to run on the Raspberry Pi to control the stages
 if __name__ == "__main__":
     
-    from zprocess import zmq_get, ZMQServer, Process
-    
+    from zprocess import zmq_get, ZMQServer
+    import threading
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BCM) 
     GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     # Set up the process which will run during the experiment
-    class ExperimentProcess(Process):
-        def run(focus):
-            # first, check that the stages are in the MOT position.
-            lens_position = check_stage_position(lens_stage)
-            mirror_position = check_stage_position(mirror_stage)
-
-            if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
-                move_to_MOT()
-            # now tell parent that we're ready to go
-            self.to_parent.put('ok')            
-            # Now we're waiting for the triggers and ready to go
-            while not GPIO.input(23):
-                GPIO.wait_for_edge(23, GPIO.RISING)
-            move_to_imaging(focus)
-            while GPIO.input(23):
-                GPIO.wait_for_edge(23, GPIO.FALLING)
-            move_to_MOT()
+    
+    
 
     class ExperimentServer(ZMQServer):
         def __init__(self, *args, **kwargs):
             ZMQServer.__init__(self, *args, **kwargs)
             self.buffered = False
             self.initialised = False
+            self.abort = threading.Event()
 
-           
+        def run_experiment(focus):
+            
+            # Now we're waiting for the triggers and ready to go
+            while not GPIO.input(23) and not self.abort.is_set():
+                GPIO.wait_for_edge(23, GPIO.RISING, timeout=1000)
+            if self.abort.is_set():
+                break
+            move_to_imaging(focus)
+            
+            while GPIO.input(23) and not self.abort.is_set():
+                GPIO.wait_for_edge(23, GPIO.FALLING, timeout=1000)
+            if self.abort.is_set():
+                break
+            move_to_MOT()
+
         def initialise(self):
             print "Initialising"
             # connect to stages
@@ -336,14 +336,24 @@ if __name__ == "__main__":
                 return self.initialise()
                 
             elif cmd == 'transition_to_buffered':
+                self.abort.clear()
                 focus = message_parts[1]
-                self.experiment = ExperimentProcess()
-                to_child, from_child = self.experiment.start(focus)
-                ret_message = from_child.get()
+                # first, check that the stages are in the MOT position.
+                lens_position = check_stage_position(lens_stage)
+                mirror_position = check_stage_position(mirror_stage)
+
+                if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
+                    move_to_MOT()
+                # now tell parent that we're ready to go
+                ret_message = 'ok'            
+                self.experiment = threading.Thread(target = self.run_experiment, args = (focus,))
+                self.experiment.daemon = True
+                self.experiment.start()
                 self.buffered = True
 
             elif cmd == 'transition_to_manual':
-                self.experiment.terminate()
+                self.abort.set()
+                self.experiment.join()
                 lens_position = check_stage_position(lens_stage)
                 mirror_position = check_stage_position(mirror_stage)
                 if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
