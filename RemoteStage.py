@@ -68,17 +68,16 @@ if __name__ != "__main__":
             
             # Create the AO output objects
             ao_prop = {}
-            for child_name in self.device.child_list:
-                connection = self.device.child_list[child_name].parent_port
-                
-                base_max = 76346
-                
-                ao_prop[connection] = {'base_unit':self.base_units,
-                                       'min':self.base_min,
-                                       'max':base_max,
-                                       'step':self.base_step,
-                                       'decimals':self.base_decimals
-                                      }
+       
+                     
+            base_max = 76346
+            
+            ao_prop["0"] = {'base_unit':self.base_units,
+                                   'min':self.base_min,
+                                   'max':base_max,
+                                   'step':self.base_step,
+                                   'decimals':self.base_decimals
+                                  }
                                     
             # Create the output objects    
             self.create_analog_outputs(ao_prop)        
@@ -131,7 +130,7 @@ if __name__ != "__main__":
             if response != 'ok':
                 raise Exception('Failed to transition to buffered. Message from server was: %s'%response)
               
-            return focus
+            return {"0":focus}
 
 
 
