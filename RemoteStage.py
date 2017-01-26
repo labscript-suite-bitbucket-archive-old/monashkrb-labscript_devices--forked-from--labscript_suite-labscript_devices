@@ -301,14 +301,14 @@ if __name__ == "__main__":
             # safest to do lens first, in case it has fallen down and is resting on the mirror.
             send(lens_stage, get_setting, device_mode)
             lens_settings = receive()[2]
-            if not int(bin(lens_settings)[-8]):
+            if len(bin(lens_settings)) < 10 or not int(bin(lens_settings)[-8]):
                 #lens stage is not homed, let's home it now.
                 print "Homing lens stage"
                 send(lens_stage,home)
             # and now the mirror
             send(mirror_stage, get_setting, device_mode)
             mirror_settings = receive()[2]
-            if not int(bin(mirror_settings)[-8]):
+            if len(bin(mirror_settings)) < 10 or not int(bin(mirror_settings)[-8]):
                 #mirror stage is not homed, let's home it now.
                 print "Homing mirror stage"
                 send(mirror_stage,home)
