@@ -36,7 +36,8 @@ if __name__ != "__main__":
                 ignore = stage.get_change_times()
                 stage.make_timeseries([])
                 stage.expand_timeseries()
-                connection = [int(s) for s in stage.connection.split() if s.isdigit()][0]
+                # connection = [int(s) for s in stage.connection.split() if s.isdigit()][0]
+                connection = [s for s in stage.connection][0]
                 value = stage.raw_output[0]
                 if not minval <= value <= maxval:
                     # error, out of bounds
@@ -70,15 +71,32 @@ if __name__ != "__main__":
             ao_prop = {}
        
                      
-            base_max = 76346
+            f_max = 76346
             
-            ao_prop["0"] = {'base_unit':self.base_units,
+            ao_prop["f1"] = {'base_unit':self.base_units,
                                    'min':self.base_min,
-                                   'max':base_max,
+                                   'max':f_max,
                                    'step':self.base_step,
                                    'decimals':self.base_decimals
                                   }
-                                    
+            ao_prop["f2"] = {'base_unit':self.base_units,
+                                   'min':self.base_min,
+                                   'max':f_max,
+                                   'step':self.base_step,
+                                   'decimals':self.base_decimals
+                                  }
+            ao_prop["v"] = {'base_unit':self.base_units,
+                                   'min':1,
+                                   'max':512*64-1,
+                                   'step':1,
+                                   'decimals':self.base_decimals
+                                  }
+            ao_prop["a"] = {'base_unit':self.base_units,
+                                   'min':1,
+                                   'max':512*64-1,
+                                   'step':1,
+                                   'decimals':self.base_decimals
+                                  }
             # Create the output objects    
             self.create_analog_outputs(ao_prop)        
             # Create widgets for output objects
@@ -122,10 +140,13 @@ if __name__ != "__main__":
             with h5py.File(h5file) as hdf5_file:
                 group = hdf5_file['/devices/'+device_name]
                 if 'static_values' in group:
-                    focus = group['static_values'][0][0]
+                    focus_1 = group['static_values']['f1'][0]
+                    focus_2 = group['static_values']['f2'][0]
+                    velocity = group['static_values']['v'][0]
+                    acceleration = group['static_values']['a'][0]
 
 
-            response = self.send_data("%s %s"%("transition_to_buffered", focus))
+            response = self.send_data("%s %s %s %s %s"%("transition_to_buffered", focus_1, focus_2, velocity, acceleration))
             
             if response != 'ok':
                 raise Exception('Failed to transition to buffered. Message from server was: %s'%response)
@@ -197,7 +218,8 @@ move = 20
 get_position = 60
 get_setting = 53
 device_mode = 40
-
+set_velocity = 42
+set_acceleration = 43
 # list of positions
 ## MOT positions:
 mirror_mot_position = 76346
@@ -276,19 +298,46 @@ if __name__ == "__main__":
             self.initialised = False
             self.abort = threading.Event()
 
-        def run_experiment(self,focus):
+        def run_experiment(self,focus_1,focus_2,velocity,acceleration):
             
             # Now we're waiting for the triggers and ready to go
             while not GPIO.input(23) and not self.abort.is_set():
                 GPIO.wait_for_edge(23, GPIO.RISING, timeout=1000)
             if self.abort.is_set():
                 return
-            move_to_imaging(focus)
+            # the first rising edge has occured, so now we move the MOT mirror out and move the objective to focus 1
+            move_to_imaging(focus_1)
             
+            # now wait for the trigger to fall again
             while GPIO.input(23) and not self.abort.is_set():
                 GPIO.wait_for_edge(23, GPIO.FALLING, timeout=1000)
             if self.abort.is_set():
                 return
+            # the trigger has fallen, so we are about to move to the second focus for imaging. We want to do this smoothly, so lets set the velocity and acceleration
+            # the fastest that I trust the stage is 3000, otherwise it can get stuck due to the weight of the lens
+            velocity = int(velocity)
+            acceleration = int(acceleration)
+            if velocity < 3000:
+                send(lens_stage, set_velocity, data=velocity)
+            if acceleration < 100:
+                send(lens_stage, set_acceleration, data=acceleration)
+                
+            # now wait for the next trigger to move the objective to the imaging position
+            while not GPIO.input(23) and not self.abort.is_set():
+                GPIO.wait_for_edge(23, GPIO.RISING, timeout=1000)
+            if self.abort.is_set():
+                return
+            # the first rising edge has occured, so now we move the MOT mirror out and move the objective to focus 1
+            send(lens_stage, move, data=int(focus_2))
+            
+            # and finally wait for the trigger to fall again to indicate that the experiment is over
+            while GPIO.input(23) and not self.abort.is_set():
+                GPIO.wait_for_edge(23, GPIO.FALLING, timeout=1000)
+            if self.abort.is_set():
+                return
+            # reset to faster speed first, then move to the MOT
+            send(lens_stage, set_velocity, data=3000)
+            send(lens_stage, set_acceleration, data=50)
             move_to_MOT()
 
         def initialise(self):
@@ -336,7 +385,10 @@ if __name__ == "__main__":
                 
             elif cmd == 'transition_to_buffered':
                 self.abort.clear()
-                focus = message_parts[1]
+                focus_1 = message_parts[1]
+                focus_2 = message_parts[2]
+                velocity = message_parts[3]
+                acceleration = message_parts[4]
                 # first, check that the stages are in the MOT position.
                 lens_position = check_stage_position(lens_stage)
                 mirror_position = check_stage_position(mirror_stage)
@@ -345,7 +397,7 @@ if __name__ == "__main__":
                     move_to_MOT()
                 # now tell parent that we're ready to go
                 ret_message = 'ok'            
-                self.experiment = threading.Thread(target = self.run_experiment, args = (focus,))
+                self.experiment = threading.Thread(target = self.run_experiment, args = (focus_1,focus_1,velocity,acceleration))
                 self.experiment.daemon = True
                 self.experiment.start()
                 self.buffered = True
