@@ -306,6 +306,8 @@ if __name__ == "__main__":
             if self.abort.is_set():
                 return
             # the first rising edge has occured, so now we move the MOT mirror out and move the objective to focus 1
+            
+            # print "Moving to focus 1 at %s" %focus_1
             move_to_imaging(focus_1)
             
             # now wait for the trigger to fall again
@@ -318,8 +320,10 @@ if __name__ == "__main__":
             velocity = int(velocity)
             acceleration = int(acceleration)
             if velocity < 3000:
+                #  print "Setting velocity to %s" %velocity
                 send(lens_stage, set_velocity, data=velocity)
             if acceleration < 100:
+                # print "Setting acceleration to %s"%acceleration
                 send(lens_stage, set_acceleration, data=acceleration)
                 
             # now wait for the next trigger to move the objective to the imaging position
@@ -328,16 +332,18 @@ if __name__ == "__main__":
             if self.abort.is_set():
                 return
             # the first rising edge has occured, so now we move the MOT mirror out and move the objective to focus 1
+            # print "Moving to focus 2 at %s"%focus_2
             send(lens_stage, move, data=int(focus_2))
-            
+            wait_until_in_position(lens_stage,int(focus_2))
             # and finally wait for the trigger to fall again to indicate that the experiment is over
             while GPIO.input(23) and not self.abort.is_set():
                 GPIO.wait_for_edge(23, GPIO.FALLING, timeout=1000)
             if self.abort.is_set():
                 return
             # reset to faster speed first, then move to the MOT
+            # print "Resetting speed then moving to MOT"
             send(lens_stage, set_velocity, data=3000)
-            send(lens_stage, set_acceleration, data=50)
+            send(lens_stage, set_acceleration, data=75)
             move_to_MOT()
 
         def initialise(self):
@@ -397,7 +403,7 @@ if __name__ == "__main__":
                     move_to_MOT()
                 # now tell parent that we're ready to go
                 ret_message = 'ok'            
-                self.experiment = threading.Thread(target = self.run_experiment, args = (focus_1,focus_1,velocity,acceleration))
+                self.experiment = threading.Thread(target = self.run_experiment, args = (focus_1,focus_2,velocity,acceleration))
                 self.experiment.daemon = True
                 self.experiment.start()
                 self.buffered = True
