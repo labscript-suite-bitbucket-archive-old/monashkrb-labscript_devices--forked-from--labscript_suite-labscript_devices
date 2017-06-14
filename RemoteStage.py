@@ -151,7 +151,7 @@ if __name__ != "__main__":
             if response != 'ok':
                 raise Exception('Failed to transition to buffered. Message from server was: %s'%response)
               
-            return {"0":focus}
+            return {"f1":focus_1,"f2":focus_2, "v":velocity, "a": acceleration}
 
 
 
