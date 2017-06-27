@@ -182,6 +182,9 @@ if __name__ != "__main__":
             
         def status(self, region):
             return self.send_data("status %s"%region)
+            
+        def shutdown(self):
+            return
 
 
 #### Some common stage control functions that the Pi will use on the remote side, but can also be used when importing this file to manually control the stages
