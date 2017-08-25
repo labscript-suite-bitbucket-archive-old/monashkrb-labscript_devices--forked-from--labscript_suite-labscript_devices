@@ -126,14 +126,9 @@ class Camera(TriggerableDevice):
             
 
 import os
-import sys
 
-if 'PySide' in sys.modules.copy():
-    from PySide.QtCore import *
-    from PySide.QtGui import *
-else:
-    from PyQt4.QtCore import *
-    from PyQt4.QtGui import *
+from qtutils.qt.QtCore import *
+from qtutils.qt.QtGui import *
 
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
@@ -255,7 +250,7 @@ class CameraWorker(Worker):
         h5file = shared_drive.path_to_agnostic(h5file)
         if not self.use_zmq:
             return self.transition_to_buffered_sockets(h5file,self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, data=h5file)
+        response = zprocess.zmq_get_raw(self.port, self.host, data=h5file.encode('utf-8'))
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
         response = zprocess.zmq_get_raw(self.port, self.host, timeout = 10)
